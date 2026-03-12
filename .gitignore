@@ -1,0 +1,43 @@
+# ── Xcode ──────────────────────────────────────────────────────────────────
+build/
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+xcuserdata/
+*.moved-aside
+*.xccheckout
+*.xcscmblueprint
+DerivedData/
+*.hmap
+*.ipa
+*.xcuserstate
+*.xcworkspace/xcuserdata/
+
+# ── Swift Package Manager ───────────────────────────────────────────────────
+.build/
+.swiftpm/
+Packages/
+Package.resolved
+
+# ── CocoaPods ───────────────────────────────────────────────────────────────
+Pods/
+
+# ── macOS ───────────────────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+*.icloud
+
+# ── Secrets — NEVER commit these ────────────────────────────────────────────
+MailMind/Utilities/Config.swift
+*.xcconfig
+Secrets.swift
+.env
+
+# ── Logs / crash reports ────────────────────────────────────────────────────
+*.log
