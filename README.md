@@ -1,5 +1,5 @@
  ---                                                                                                                                                     
-  MailMind                                                                                                                                                
+  ###MailMind                                                                                                                                                
                                                                                                                                                           
   A native macOS email client that uses Claude AI to triage and summarise your inbox in real time.                                                        
                                                             
