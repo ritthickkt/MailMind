@@ -16,8 +16,9 @@ class EmailViewModel: ObservableObject {
     @Published var loadingMessage = "Fetching emails…"
     @Published var error: String? = nil
 
-    private let gmailService      = GmailService()
-    private let anthropicService  = AnthropicService()
+    private let gmailService     = GmailService()
+    private let outlookService   = OutlookService()
+    private let anthropicService = AnthropicService()
 
     // MARK: - Computed counts (for sidebar)
 
@@ -35,13 +36,28 @@ class EmailViewModel: ObservableObject {
         error          = nil
 
         do {
-            let rawEmails = try await gmailService.fetchRecentEmails(maxResults: 20)
+            var rawEmails: [Email] = []
+
+            // Fetch from each authenticated source concurrently
+            let gmailAuthenticated   = KeychainHelper.load(key: "gmail_access_token")   != nil
+            let outlookAuthenticated = KeychainHelper.load(key: "outlook_access_token") != nil
+
+            try await withThrowingTaskGroup(of: [Email].self) { group in
+                if gmailAuthenticated {
+                    group.addTask { try await self.gmailService.fetchRecentEmails(maxResults: 20) }
+                }
+                if outlookAuthenticated {
+                    group.addTask { try await self.outlookService.fetchRecentEmails(maxResults: 20) }
+                }
+                for try await batch in group {
+                    rawEmails.append(contentsOf: batch)
+                }
+            }
 
             loadingMessage = "Analysing with Claude…"
 
             var analysed: [Email] = []
             for raw in rawEmails {
-                // Gracefully skip if Claude call fails for one email
                 let result = (try? await anthropicService.analyzeEmail(raw)) ?? raw
                 analysed.append(result)
             }

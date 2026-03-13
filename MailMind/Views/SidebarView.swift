@@ -10,8 +10,14 @@ import SwiftUI
 struct SidebarView: View {
     @Binding var selectedPriority: Priority?
     @Binding var selectedSource: EmailSource?
+    @Binding var selectedLabel: String?
     @ObservedObject var viewModel: EmailViewModel
     @ObservedObject var gmailAuth: GmailAuthService
+    @ObservedObject var outlookAuth: OutlookAuthService
+
+    @State private var hoveredPriority: Priority? = nil
+    @State private var hoveredSource: EmailSource? = nil
+    @State private var hoveredLabel: String? = nil
 
     var body: some View {
         ScrollView {
@@ -39,19 +45,35 @@ struct SidebarView: View {
                 // MARK: LABELS
                 sectionLabel("Labels")
 
-                labelRow("⚡", "Action Required")
-                labelRow("📅", "Meetings")
-                labelRow("💰", "Finance")
-                labelRow("ℹ️", "Info Only")
+                labelRow("Action Required", tag: "Action Needed")
+                labelRow("Meetings",        tag: "Meeting")
+                labelRow("Finance",         tag: "Finance")
+                labelRow("Info Only",       tag: "Info Only")
 
                 Spacer()
 
-                // Connect / auth button at bottom
-                if !gmailAuth.isAuthenticated {
+                // Connect buttons for unauthenticated providers
+                let needsGmail   = !gmailAuth.isAuthenticated
+                let needsOutlook = !outlookAuth.isAuthenticated
+                if needsGmail || needsOutlook {
                     Divider()
                         .overlay(Color.mmBorder)
                         .padding(.vertical, 8)
-                    connectButton
+                    if needsGmail {
+                        connectProviderButton(
+                            label: "Connect Gmail",
+                            color: .mmGmail,
+                            action: { gmailAuth.startOAuthFlow() }
+                        )
+                    }
+                    if needsOutlook {
+                        connectProviderButton(
+                            label: "Connect Outlook",
+                            color: .mmOutlook,
+                            action: { outlookAuth.startOAuthFlow() }
+                        )
+                        .padding(.top, needsGmail ? 6 : 0)
+                    }
                 }
             }
             .padding(.top, 20)
@@ -66,6 +88,7 @@ struct SidebarView: View {
     @ViewBuilder
     private func priorityRow(_ priority: Priority, label: String, count: Int) -> some View {
         let isActive = selectedPriority == priority
+        let isHovered = hoveredPriority == priority
         Button {
             selectedPriority = priority
         } label: {
@@ -83,17 +106,26 @@ struct SidebarView: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
-            .background(isActive ? Color.mmAccent.opacity(0.10) : Color.clear)
+            .background(
+                isActive
+                    ? Color.mmAccent.opacity(0.10)
+                    : isHovered ? Color.white.opacity(0.05) : Color.clear
+            )
             .clipShape(RoundedRectangle(cornerRadius: 7))
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 16)
+        .onHover { over in
+            hoveredPriority = over ? priority : nil
+            if over { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+        }
     }
 
     @ViewBuilder
     private func sourceRow(_ source: EmailSource, label: String, letter: String,
                            color: Color, count: Int) -> some View {
         let isActive = selectedSource == source
+        let isHovered = hoveredSource == source
         Button {
             selectedSource = (selectedSource == source) ? nil : source
         } label: {
@@ -111,24 +143,50 @@ struct SidebarView: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
-            .background(isActive ? Color.mmAccent.opacity(0.10) : Color.clear)
+            .background(
+                isActive
+                    ? Color.mmAccent.opacity(0.10)
+                    : isHovered ? Color.white.opacity(0.05) : Color.clear
+            )
             .clipShape(RoundedRectangle(cornerRadius: 7))
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 16)
+        .onHover { over in
+            hoveredSource = over ? source : nil
+            if over { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+        }
     }
 
     @ViewBuilder
-    private func labelRow(_ icon: String, _ label: String) -> some View {
-        HStack(spacing: 8) {
-            Text(icon)
-                .font(.system(size: 12))
-            Text(label)
-                .font(.system(size: 12, design: .monospaced))
-                .foregroundStyle(Color.mmMuted)
+    private func labelRow(_ label: String, tag: String) -> some View {
+        let isActive = selectedLabel == tag
+        let isHovered = hoveredLabel == tag
+        Button {
+            selectedLabel = (selectedLabel == tag) ? nil : tag
+        } label: {
+            HStack(spacing: 8) {
+                Text(label)
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundStyle(isActive ? Color.mmAccent : Color.mmMuted)
+                Spacer()
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                isActive
+                    ? Color.mmAccent.opacity(0.10)
+                    : isHovered ? Color.white.opacity(0.05) : Color.clear
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 7))
         }
-        .padding(.horizontal, 26)
-        .padding(.vertical, 7)
+        .buttonStyle(.plain)
+        .padding(.horizontal, 16)
+        .onHover { over in
+            hoveredLabel = over ? tag : nil
+            if over { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+        }
     }
 
     @ViewBuilder
@@ -164,21 +222,19 @@ struct SidebarView: View {
             .padding(.vertical, 8)
     }
 
-    private var connectButton: some View {
-        Button {
-            gmailAuth.startOAuthFlow()
-        } label: {
+    private func connectProviderButton(label: String, color: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
             HStack {
                 Image(systemName: "envelope.badge")
-                Text("Connect Gmail")
+                Text(label)
                     .font(.system(size: 11, design: .monospaced))
             }
-            .foregroundStyle(Color.mmAccent)
+            .foregroundStyle(color)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 8)
-            .background(Color.mmAccent.opacity(0.10))
+            .background(color.opacity(0.10))
             .clipShape(RoundedRectangle(cornerRadius: 7))
-            .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.mmAccent.opacity(0.2), lineWidth: 1))
+            .overlay(RoundedRectangle(cornerRadius: 7).stroke(color.opacity(0.2), lineWidth: 1))
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 16)

@@ -12,10 +12,15 @@ import AuthenticationServices
 
 class GmailAuthService: NSObject, ObservableObject, ASWebAuthenticationPresentationContextProviding {
     @Published var isAuthenticated = false
-    
+
     private let clientID = Config.Gmail.clientID
     private let redirectURI = Config.Gmail.redirectURI
     private let scope = Config.Gmail.scope
+
+    override init() {
+        super.init()
+        isAuthenticated = KeychainHelper.load(key: "gmail_access_token") != nil
+    }
 
     func startOAuthFlow() {
       var components = URLComponents(string: "https://accounts.google.com/o/oauth2/v2/auth")!

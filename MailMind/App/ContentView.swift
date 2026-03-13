@@ -8,15 +8,18 @@
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var viewModel  = EmailViewModel()
-    @StateObject private var gmailAuth  = GmailAuthService()
+    @StateObject private var viewModel    = EmailViewModel()
+    @StateObject private var gmailAuth   = GmailAuthService()
+    @StateObject private var outlookAuth = OutlookAuthService()
     @State private var selectedPriority: Priority? = .urgent
     @State private var selectedSource: EmailSource? = nil
+    @State private var selectedLabel: String? = nil
 
     var filteredEmails: [Email] {
         viewModel.emails.filter { email in
             (selectedPriority == nil || email.priority == selectedPriority) &&
-            (selectedSource   == nil || email.source   == selectedSource)
+            (selectedSource   == nil || email.source   == selectedSource)   &&
+            (selectedLabel    == nil || email.tags.contains(selectedLabel!))
         }
     }
 
@@ -25,8 +28,10 @@ struct ContentView: View {
             SidebarView(
                 selectedPriority: $selectedPriority,
                 selectedSource: $selectedSource,
+                selectedLabel: $selectedLabel,
                 viewModel: viewModel,
-                gmailAuth: gmailAuth
+                gmailAuth: gmailAuth,
+                outlookAuth: outlookAuth
             )
 
             Rectangle()
@@ -46,20 +51,13 @@ struct ContentView: View {
         .background(Color.mmBg)
         .preferredColorScheme(.dark)
         .frame(minWidth: 680, minHeight: 520)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                HStack(spacing: 4) {
-                    Text("MailMind")
-                        .font(.system(size: 14, weight: .light, design: .serif))
-                        .italic()
-                        .foregroundStyle(Color.mmText)
-                    Text("— Notification Intelligence")
-                        .font(.system(size: 13, weight: .light))
-                        .foregroundStyle(Color.mmMuted)
-                }
-            }
+        .onAppear {
+            if isAnyAuthenticated { viewModel.refresh() }
         }
         .onChange(of: gmailAuth.isAuthenticated) { _, isAuth in
+            if isAuth { viewModel.refresh() }
+        }
+        .onChange(of: outlookAuth.isAuthenticated) { _, isAuth in
             if isAuth { viewModel.refresh() }
         }
     }
@@ -112,9 +110,13 @@ struct ContentView: View {
 
     // MARK: - Content area
 
+    private var isAnyAuthenticated: Bool {
+        gmailAuth.isAuthenticated || outlookAuth.isAuthenticated
+    }
+
     @ViewBuilder
     private var contentArea: some View {
-        if !gmailAuth.isAuthenticated {
+        if !isAnyAuthenticated {
             connectView
         } else if viewModel.isLoading {
             loadingView
@@ -172,30 +174,43 @@ struct ContentView: View {
             Text("✦")
                 .font(.system(size: 32))
                 .foregroundStyle(Color.mmAccent)
-            Text("Connect your Gmail account\nto get started")
+            Text("Connect an account to get started")
                 .font(.system(size: 14, weight: .light, design: .serif))
                 .italic()
                 .foregroundStyle(Color.mmMuted)
                 .multilineTextAlignment(.center)
-            Button {
-                gmailAuth.startOAuthFlow()
-            } label: {
-                Text("Connect Gmail")
-                    .font(.system(size: 12, design: .monospaced))
-                    .tracking(0.5)
-                    .foregroundStyle(Color.mmAccent)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 9)
-                    .background(Color.mmAccent.opacity(0.10))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color.mmAccent.opacity(0.25), lineWidth: 1)
-                    )
+            HStack(spacing: 12) {
+                connectButton(
+                    label: "Connect Gmail",
+                    color: Color.mmGmail,
+                    action: { gmailAuth.startOAuthFlow() }
+                )
+                connectButton(
+                    label: "Connect Outlook",
+                    color: Color.mmOutlook,
+                    action: { outlookAuth.startOAuthFlow() }
+                )
             }
-            .buttonStyle(.plain)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func connectButton(label: String, color: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(.system(size: 12, design: .monospaced))
+                .tracking(0.5)
+                .foregroundStyle(color)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 9)
+                .background(color.opacity(0.10))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(color.opacity(0.25), lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
     }
 
     private func errorView(_ message: String) -> some View {
